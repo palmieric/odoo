@@ -542,6 +542,37 @@ class TestExpression(TransactionCase):
         self.assertNotIn(helene, Company.search([('name','not ilike','Helene')]))
         self.assertNotIn(helene, Company.search([('name','not ilike','hélène')]))
 
+    def test_pure_function(self):
+        orig_false = expression.FALSE_DOMAIN.copy()
+        orig_true = expression.TRUE_DOMAIN.copy()
+        false = orig_false.copy()
+        true = orig_true.copy()
+
+        domain = expression.AND([])
+        domain += [('id', '=', 1)]
+        domain = expression.AND([])
+        self.assertEqual(domain, orig_true)
+
+        domain = expression.AND([false])
+        domain += [('id', '=', 1)]
+        domain = expression.AND([false])
+        self.assertEqual(domain, orig_false)
+
+        domain = expression.OR([])
+        domain += [('id', '=', 1)]
+        domain = expression.OR([])
+        self.assertEqual(domain, orig_false)
+
+        domain = expression.OR([true])
+        domain += [('id', '=', 1)]
+        domain = expression.OR([true])
+        self.assertEqual(domain, orig_true)
+
+        domain = expression.normalize_domain([])
+        domain += [('id', '=', 1)]
+        domain = expression.normalize_domain([])
+        self.assertEqual(domain, orig_true)
+
     def test_like_wildcards(self):
         # check that =like/=ilike expressions are working on an untranslated field
         Partner = self.env['res.partner']
@@ -639,6 +670,36 @@ class TestExpression(TransactionCase):
         expected = ['|', '&', ('foo', '=', 1), ('bar', '=', 1),
                          '&', ('foo', '=', 2), ('bar', '=', 2)]
         self.assertEqual(expression.OR([d1, d2]), expected)
+
+    def test_proper_combine_unit_leaves(self):
+        # test that unit leaves (TRUE_LEAF, FALSE_LEAF) are properly handled in specific cases
+        false = expression.FALSE_DOMAIN
+        true = expression.TRUE_DOMAIN
+        normal = [('foo', '=', 'bar')]
+        # OR with single FALSE_LEAF
+        expr = expression.OR([false])
+        self.assertEqual(expr, false)
+        # OR with multiple FALSE_LEAF
+        expr = expression.OR([false, false])
+        self.assertEqual(expr, false)
+        # OR with FALSE_LEAF and a normal leaf
+        expr = expression.OR([false, normal])
+        self.assertEqual(expr, normal)
+        # OR with AND of single TRUE_LEAF and normal leaf
+        expr = expression.OR([expression.AND([true]), normal])
+        self.assertEqual(expr, true)
+        # AND with single TRUE_LEAF
+        expr = expression.AND([true])
+        self.assertEqual(expr, true)
+        # AND with multiple TRUE_LEAF
+        expr = expression.AND([true, true])
+        self.assertEqual(expr, true)
+        # AND with TRUE_LEAF and normal leaves
+        expr = expression.AND([true, normal])
+        self.assertEqual(expr, normal)
+        # AND with OR with single FALSE_LEAF and normal leaf
+        expr = expression.AND([expression.OR([false]), normal])
+        self.assertEqual(expr, false)
 
 
 class TestAutoJoin(TransactionCase):
